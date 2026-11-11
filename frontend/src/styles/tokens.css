@@ -37,7 +37,7 @@
   --surface-dark: var(--atomity-gray-900);
   --text-primary: var(--atomity-black);
   --text-secondary: var(--atomity-gray-600);
-  --text-muted: rgba(3, 3, 3, 0.5);
+  --text-muted: rgba(3, 3, 3, 0.6);
   --text-on-dark: var(--atomity-gray-50);
   --border-light: rgba(3, 3, 3, 0.12);
   --border-strong: rgba(3, 3, 3, 0.22);
