@@ -84,7 +84,11 @@ public class GlobalExceptionHandler {
                 .body(ApiResponse.error(apiError("VALIDATION_ERROR", detail)));
     }
 
-    /** Query parameters bound to an object (e.g. ?status=BOGUS on the posts list). */
+    /**
+     * Binding or validation errors for query parameters bound to an object
+     * (for example, an unknown status in the admin posts list) use BAD_REQUEST
+     * and identify the affected field without exposing conversion details.
+     */
     @ExceptionHandler(BindException.class)
     public ResponseEntity<ApiResponse<Object>> handleBind(BindException ex) {
         return badQuery(ex.getFieldErrors().stream().map(error -> error.getField()).distinct().toList());

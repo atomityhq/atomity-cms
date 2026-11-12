@@ -355,6 +355,12 @@ class ContentApiTest extends IntegrationTest {
                 .andExpect(jsonPath("$.errors[0].errorCode").value("BAD_REQUEST"))
                 .andExpect(jsonPath("$.errors[0].message").value(containsString("page")))
                 .andExpect(jsonPath("$.errors[0].message").value(org.hamcrest.Matchers.not(containsString("Integer"))));
+
+        mockMvc.perform(get("/api/v1/content/news?size=not-a-number"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.errors[0].errorCode").value("BAD_REQUEST"))
+                .andExpect(jsonPath("$.errors[0].message").value(containsString("size")))
+                .andExpect(jsonPath("$.errors[0].message").value(org.hamcrest.Matchers.not(containsString("Integer"))));
     }
 
     @Test
