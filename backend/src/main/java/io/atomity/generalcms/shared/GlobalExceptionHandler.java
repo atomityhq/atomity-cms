@@ -13,6 +13,7 @@ import org.springframework.validation.BindException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.MissingServletRequestParameterException;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 import org.springframework.web.multipart.MaxUploadSizeExceededException;
@@ -20,6 +21,7 @@ import org.springframework.web.multipart.MultipartException;
 import org.springframework.web.multipart.support.MissingServletRequestPartException;
 import org.springframework.web.servlet.resource.NoResourceFoundException;
 
+import java.util.List;
 import java.util.stream.Collectors;
 
 @RestControllerAdvice
@@ -67,6 +69,14 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(MethodArgumentNotValidException.class)
     public ResponseEntity<ApiResponse<Object>> handleValidation(MethodArgumentNotValidException ex) {
+        // @ModelAttribute validation is used for query DTOs. Keep query errors in
+        // the documented BAD_REQUEST category and avoid exposing binding details.
+        if (!ex.getParameter().hasParameterAnnotation(RequestBody.class)) {
+            return badQuery(ex.getBindingResult().getFieldErrors().stream()
+                    .map(error -> error.getField())
+                    .distinct()
+                    .toList());
+        }
         String detail = ex.getBindingResult().getFieldErrors().stream()
                 .map(error -> error.getField() + " " + error.getDefaultMessage())
                 .collect(Collectors.joining("; "));
@@ -77,11 +87,7 @@ public class GlobalExceptionHandler {
     /** Query parameters bound to an object (e.g. ?status=BOGUS on the posts list). */
     @ExceptionHandler(BindException.class)
     public ResponseEntity<ApiResponse<Object>> handleBind(BindException ex) {
-        String detail = ex.getFieldErrors().stream()
-                .map(error -> "Invalid value for '" + error.getField() + "'")
-                .collect(Collectors.joining("; "));
-        return ResponseEntity.badRequest()
-                .body(ApiResponse.error(apiError("BAD_REQUEST", detail)));
+        return badQuery(ex.getFieldErrors().stream().map(error -> error.getField()).distinct().toList());
     }
 
     @ExceptionHandler(HttpMediaTypeNotSupportedException.class)
@@ -133,5 +139,13 @@ public class GlobalExceptionHandler {
 
     private static ApiError apiError(String code, String message) {
         return new ApiError(code, message, MDC.get(CorrelationFilter.MDC_CORRELATION_KEY));
+    }
+
+    private static ResponseEntity<ApiResponse<Object>> badQuery(List<String> fields) {
+        String detail = fields.stream()
+                .map(field -> "Invalid value for '" + field + "'")
+                .collect(Collectors.joining("; "));
+        return ResponseEntity.badRequest()
+                .body(ApiResponse.error(apiError("BAD_REQUEST", detail)));
     }
 }
