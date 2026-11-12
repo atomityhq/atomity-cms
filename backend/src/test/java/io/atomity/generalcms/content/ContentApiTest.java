@@ -335,7 +335,26 @@ class ContentApiTest extends IntegrationTest {
         call(get("/api/v1/posts?type=kb")).andExpect(jsonPath("$.data[0].type").value("kb"));
         call(get("/api/v1/posts?type=bogus")).andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.errors[0].errorCode").value("UNKNOWN_CONTENT_TYPE"));
-        call(get("/api/v1/posts?status=BOGUS")).andExpect(status().isBadRequest());
+        call(get("/api/v1/posts?status=BOGUS")).andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.errors[0].errorCode").value("BAD_REQUEST"))
+                .andExpect(jsonPath("$.errors[0].message").value(containsString("status")))
+                .andExpect(jsonPath("$.errors[0].message").value(org.hamcrest.Matchers.not(containsString("PostStatus"))));
+    }
+
+    @Test
+    void invalidPaginationParametersReturnSafeBadRequestErrors() throws Exception {
+        call(get("/api/v1/posts?page=not-a-number&size=also-not-a-number"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.errors[0].errorCode").value("BAD_REQUEST"))
+                .andExpect(jsonPath("$.errors[0].message").value(containsString("page")))
+                .andExpect(jsonPath("$.errors[0].message").value(containsString("size")))
+                .andExpect(jsonPath("$.errors[0].message").value(org.hamcrest.Matchers.not(containsString("Integer"))));
+
+        mockMvc.perform(get("/api/v1/content/news?page=not-a-number"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.errors[0].errorCode").value("BAD_REQUEST"))
+                .andExpect(jsonPath("$.errors[0].message").value(containsString("page")))
+                .andExpect(jsonPath("$.errors[0].message").value(org.hamcrest.Matchers.not(containsString("Integer"))));
     }
 
     @Test
