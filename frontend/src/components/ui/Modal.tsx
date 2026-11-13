@@ -24,7 +24,14 @@ export interface ModalProps {
  * backdrop-click to dismiss, focus moves in on open and back to the opener on close.
  * Portaled to <body> so no ancestor can clip it.
  */
-export function Modal({ title, description, onClose, maxWidth = 520, footer, children }: ModalProps) {
+export function Modal({
+  title,
+  description,
+  onClose,
+  maxWidth = 520,
+  footer,
+  children,
+}: ModalProps) {
   const dialogRef = useRef<HTMLDivElement>(null);
   const onCloseRef = useRef(onClose);
 
@@ -35,15 +42,40 @@ export function Modal({ title, description, onClose, maxWidth = 520, footer, chi
   useEffect(() => {
     const opener = document.activeElement as HTMLElement | null;
     // Focus the first form control if there is one, otherwise the dialog itself.
-    const firstField = dialogRef.current?.querySelector<HTMLElement>("input, textarea, select");
+    const firstField = dialogRef.current?.querySelector<HTMLElement>(
+      "input, textarea, select",
+    );
     (firstField ?? dialogRef.current)?.focus();
 
     const token = {};
     openStack.push(token);
     const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape" && openStack[openStack.length - 1] === token) {
+      if (openStack[openStack.length - 1] !== token) return;
+
+      if (event.key === "Escape") {
         event.stopPropagation();
         onCloseRef.current();
+        return;
+      }
+
+      if (event.key !== "Tab") return;
+
+      const focusableElements =
+        dialogRef.current?.querySelectorAll<HTMLElement>(
+          'a[href], button:not([disabled]), input:not([disabled]), textarea:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex="-1"])',
+        );
+
+      if (!focusableElements?.length) return;
+
+      const firstElement = focusableElements[0];
+      const lastElement = focusableElements[focusableElements.length - 1];
+
+      if (event.shiftKey && document.activeElement === firstElement) {
+        event.preventDefault();
+        lastElement.focus();
+      } else if (!event.shiftKey && document.activeElement === lastElement) {
+        event.preventDefault();
+        firstElement.focus();
       }
     };
     document.addEventListener("keydown", onKeyDown);
@@ -76,12 +108,26 @@ export function Modal({ title, description, onClose, maxWidth = 520, footer, chi
         <div className="flex items-start justify-between gap-4 px-6 pt-5 pb-3">
           <div>
             <h2 className="text-[15px] leading-snug font-bold">{title}</h2>
-            {description && <p className="mt-1 text-[12px] text-muted">{description}</p>}
+            {description && (
+              <p className="mt-1 text-[12px] text-muted">{description}</p>
+            )}
           </div>
-          <IconButton icon={X} label="Close" onClick={onClose} size={24} iconSize={16} />
+          <IconButton
+            icon={X}
+            label="Close"
+            onClick={onClose}
+            size={24}
+            iconSize={16}
+          />
         </div>
-        <div className="min-h-0 flex-1 overflow-y-auto px-6 pb-5">{children}</div>
-        {footer && <div className="flex justify-end gap-2 border-t border-line px-6 py-3.5">{footer}</div>}
+        <div className="min-h-0 flex-1 overflow-y-auto px-6 pb-5">
+          {children}
+        </div>
+        {footer && (
+          <div className="flex justify-end gap-2 border-t border-line px-6 py-3.5">
+            {footer}
+          </div>
+        )}
       </div>
     </div>,
     document.body,
