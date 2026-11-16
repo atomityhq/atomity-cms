@@ -7,6 +7,7 @@ import io.atomity.generalcms.shared.ApiException;
 import io.atomity.generalcms.shared.NulCharacters;
 
 import java.net.URI;
+import java.net.IDN;
 import java.net.URISyntaxException;
 import java.time.LocalDate;
 import java.time.format.DateTimeParseException;
@@ -135,9 +136,34 @@ public final class FieldValidator {
         try {
             URI uri = new URI(text);
             String scheme = uri.getScheme();
-            return ("http".equalsIgnoreCase(scheme) || "https".equalsIgnoreCase(scheme))
-                    && uri.getHost() != null && !uri.getHost().isBlank();
-        } catch (URISyntaxException e) {
+            if (!("http".equalsIgnoreCase(scheme) || "https".equalsIgnoreCase(scheme))) return false;
+
+            String host = uri.getHost();
+            if (host != null && !host.isBlank()) return true;
+
+            // URI#getHost returns null for valid Unicode domain names. Convert just the hostname
+            // to ASCII for validation while leaving the submitted URL untouched.
+            String authority = uri.getRawAuthority();
+            if (authority == null || authority.isBlank()) return false;
+            int userInfoEnd = authority.lastIndexOf('@');
+            String hostAndPort = authority.substring(userInfoEnd + 1);
+            if (hostAndPort.startsWith("[")) return false; // IPv6 should already have parsed above.
+
+            int portStart = hostAndPort.lastIndexOf(':');
+            String unicodeHost = portStart >= 0 ? hostAndPort.substring(0, portStart) : hostAndPort;
+            String port = portStart >= 0 ? hostAndPort.substring(portStart + 1) : null;
+            String asciiHost = IDN.toASCII(unicodeHost, IDN.USE_STD3_ASCII_RULES);
+            if (asciiHost.isBlank()) return false;
+
+            // Re-parse the authority after IDN conversion so malformed ports and authority
+            // syntax are rejected by the same URI parser used for ordinary URLs.
+            String asciiAuthority = authority.substring(0, userInfoEnd + 1) + asciiHost
+                    + (port == null ? "" : ":" + port);
+            URI normalized = new URI(scheme + "://" + asciiAuthority + uri.getRawPath()
+                    + (uri.getRawQuery() == null ? "" : "?" + uri.getRawQuery())
+                    + (uri.getRawFragment() == null ? "" : "#" + uri.getRawFragment()));
+            return normalized.getHost() != null && !normalized.getHost().isBlank();
+        } catch (IllegalArgumentException | URISyntaxException e) {
             return false;
         }
     }
