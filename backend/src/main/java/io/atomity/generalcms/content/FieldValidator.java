@@ -7,6 +7,7 @@ import io.atomity.generalcms.shared.ApiException;
 import io.atomity.generalcms.shared.NulCharacters;
 
 import java.net.URI;
+import java.net.IDN;
 import java.net.URISyntaxException;
 import java.time.LocalDate;
 import java.time.format.DateTimeParseException;
@@ -15,6 +16,8 @@ import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Set;
+
+
 
 /**
  * Checks and normalises the type-specific {@code fields} of an item. Two separate questions:
@@ -135,9 +138,53 @@ public final class FieldValidator {
         try {
             URI uri = new URI(text);
             String scheme = uri.getScheme();
-            return ("http".equalsIgnoreCase(scheme) || "https".equalsIgnoreCase(scheme))
-                    && uri.getHost() != null && !uri.getHost().isBlank();
+            if(!"http".equalsIgnoreCase(scheme) && !"https".equalsIgnoreCase(scheme)){
+                return false;
+            }
+            if (uri.getHost() != null && !uri.getHost().isBlank()){
+                return true;
+            }
+            return isValidIdnAuthority(scheme, uri.getRawAuthority());
+
         } catch (URISyntaxException e) {
+            return false;
+        }
+    }
+
+    private static boolean isValidIdnAuthority(String scheme , String authority){
+        if(authority == null || authority.isBlank()){
+            return false;
+        }
+        String hostPort = authority;
+        int atIndex = hostPort.lastIndexOf('@');
+        if(atIndex >= 0){
+            hostPort = hostPort.substring(atIndex + 1);
+        }
+
+        String host = hostPort;
+        int colonIndex = hostPort.lastIndexOf(':');
+        if (colonIndex >= 0) {
+            String portStr = hostPort.substring(colonIndex + 1);
+            try {
+                int port = Integer.parseInt(portStr);
+                if (port < 0 || port > 65535) {
+                    return false;
+                }
+            } catch (NumberFormatException e) {
+                return false;
+            }
+            host = hostPort.substring(0, colonIndex);
+        }
+
+        if (host.isBlank()) {
+            return false;
+        }
+
+        try {
+            String asciiHost = IDN.toASCII(host, IDN.USE_STD3_ASCII_RULES);
+            URI normalized = new URI(scheme + "://" + asciiHost);
+            return normalized.getHost() != null && !normalized.getHost().isBlank();
+        } catch (IllegalArgumentException | URISyntaxException e) {
             return false;
         }
     }
