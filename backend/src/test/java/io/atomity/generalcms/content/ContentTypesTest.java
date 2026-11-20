@@ -24,7 +24,7 @@ class ContentTypesTest {
     }
 
     @Test
-    void registryHoldsTheFourTypesWithTheirDestinations() {
+    void registryHoldsAllFiveTypesWithTheirDestinations() {
         assertThat(ContentTypes.keys()).containsExactly("news", "career", "docs", "kb", "event");
         assertThat(ContentTypes.require("news").destination()).isEqualTo(new ContentTypeDefinition.Destination("website", "/news"));
         assertThat(ContentTypes.require("career").destination()).isEqualTo(new ContentTypeDefinition.Destination("website", "/careers"));

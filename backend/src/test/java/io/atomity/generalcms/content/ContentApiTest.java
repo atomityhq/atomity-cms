@@ -122,6 +122,18 @@ class ContentApiTest extends IntegrationTest {
     }
 
     @Test
+    void malformedEventFieldValuesAreRejectedEvenInADraft() throws Exception {
+        Map<String, Object> fields = Map.of("registrationUrl", "not a url", "startsOn", "bad-date", "online", "yes", "bogus", 1);
+        call(post("/api/v1/posts"), body("event", "Bad event", fields))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.errors[0].errorCode").value("VALIDATION_ERROR"))
+                .andExpect(jsonPath("$.errors[0].message").value(containsString("fields.registrationUrl")))
+                .andExpect(jsonPath("$.errors[0].message").value(containsString("fields.startsOn")))
+                .andExpect(jsonPath("$.errors[0].message").value(containsString("fields.online")))
+                .andExpect(jsonPath("$.errors[0].message").value(containsString("fields.bogus")));
+    }
+
+    @Test
     void malformedFieldValuesAreRejectedEvenInADraft() throws Exception {
         Map<String, Object> fields = Map.of("applyUrl", "not a url", "employmentType", "freelance", "bogus", 1);
         call(post("/api/v1/posts"), body("career", "Bad", fields))

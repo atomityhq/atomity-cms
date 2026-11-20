@@ -1,7 +1,7 @@
 # Atomity CMS
 
 Open-source CMS for the content that sits next to the product: **news**, **career openings**,
-**documentation** and **knowledge-base** articles.
+**documentation** and **knowledge-base** articles and **events**.
 
 An editor picks a content type, fills in guided fields, saves a draft, validates it and clicks
 Publish. Published content is then available through a public, read-only API, so separate websites
@@ -23,7 +23,7 @@ one shared content model instead of a blog-only one.
 
 | It does | It does not |
 |---|---|
-| Four content types with their own guided fields and validation | Render, host or deploy any website |
+| Five content types with their own guided fields and validation | Render, host or deploy any website |
 | Draft → published → archived lifecycle, with validation on publish | Push content anywhere: no webhooks, no builds, no cache revalidation |
 | A public read API that only ever returns published content | Manage several users or roles (one admin account) |
 | Rich text (Tiptap JSON) and local image uploads | Schedule posts, keep revisions, or translate content |
@@ -37,6 +37,8 @@ one shared content model instead of a blog-only one.
 | `career` | Job openings and internships | **department**, **location**, **employmentType** (`full-time`, `part-time`, `intern`, `contract`), **applyUrl**, closingDate, remote |
 | `docs` | Guides and onboarding documentation | **section**, order |
 | `kb` | Troubleshooting and knowledge-base articles | **symptom**, product, affectedVersions |
+| `event` | Community events, meetups and workshops | **venue**, **startsOn**, registrationUrl, online |
+| `event` | Community events, meetups and workshops | **venue**, **startsOn**, registrationUrl, online |
 
 Every item also has a title, slug, excerpt, rich-text body, status and timestamps. A draft can be
 saved with anything missing; **publishing** needs a title, some content and the type's required
