@@ -1,9 +1,9 @@
 "use client";
 
-import { useState } from "react";
-import { useRouter } from "next/navigation";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { FileText, Plus, SearchX } from "lucide-react";
-import { DataTable, type DataTableColumn, type DataTableSort } from "@/components/ui/DataTable";
+import { DataTable, type DataTableColumn } from "@/components/ui/DataTable";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { ErrorState } from "@/components/ui/ErrorState";
 import { Modal } from "@/components/ui/Modal";
@@ -19,6 +19,7 @@ import { formatDateTime, timeAgo } from "@/lib/format";
 import { POST_STATUSES, type ContentTypeDefinition, type PostSortKey, type PostStatus, type PostSummary } from "@/types/post";
 import { getContentTypes, listPosts } from "./api";
 import { describeDestination, typeLabel } from "./form";
+import { CONTENT_LIST_STORAGE_KEY, buildContentListUrl, parseListParams } from "./listParams";
 
 const PAGE_SIZE = 10;
 
@@ -26,31 +27,87 @@ const STATUS_LABELS: Record<PostStatus, string> = { DRAFT: "Drafts", PUBLISHED: 
 
 export function ContentListCanvas() {
   const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
 
-  const [type, setType] = useState("");
-  const [status, setStatus] = useState<PostStatus | "">("");
-  const [query, setQuery] = useState("");
-  const [sort, setSort] = useState<DataTableSort>({ key: "updatedAt", direction: "desc" });
-  const [page, setPage] = useState(0);
+  const activeState = useMemo(() => parseListParams(searchParams), [searchParams]);
+
+  const [prevParamQ, setPrevParamQ] = useState(activeState.q);
+  const [query, setQuery] = useState(activeState.q);
   const [choosingType, setChoosingType] = useState(false);
+
+  // Synchronize search input when URL query param changes (e.g. back/forward, clear)
+  if (prevParamQ !== activeState.q) {
+    setPrevParamQ(activeState.q);
+    setQuery(activeState.q);
+  }
+
   const debouncedQuery = useDebouncedValue(query);
+
+  // Restore saved query from sessionStorage when visiting /content with no search params
+  useEffect(() => {
+    if (!searchParams.toString()) {
+      try {
+        const saved = sessionStorage.getItem(CONTENT_LIST_STORAGE_KEY);
+        if (saved) {
+          router.replace(`${pathname}?${saved}`, { scroll: false });
+        }
+      } catch {
+        // sessionStorage may fail in private browsing or restricted environments
+      }
+    }
+  }, [searchParams, pathname, router]);
+
+  // Persist non-empty URL query to sessionStorage
+  useEffect(() => {
+    const qs = searchParams.toString();
+    if (qs) {
+      try {
+        sessionStorage.setItem(CONTENT_LIST_STORAGE_KEY, qs);
+      } catch {
+        // Ignore storage errors
+      }
+    }
+  }, [searchParams]);
+
+  const updateListUrl = useCallback(
+    (updates: Partial<typeof activeState>) => {
+      const targetUrl = buildContentListUrl(pathname, updates, activeState);
+      router.replace(targetUrl, { scroll: false });
+    },
+    [pathname, activeState, router],
+  );
+
+  // Update URL search params when debounced search query changes
+  useEffect(() => {
+    if (debouncedQuery.trim() !== activeState.q.trim()) {
+      updateListUrl({ q: debouncedQuery, page: 0 });
+    }
+  }, [debouncedQuery, activeState.q, updateListUrl]);
 
   const types = useAsync(getContentTypes, []);
   const posts = useAsync(
     () =>
       listPosts({
-        type: type || undefined,
-        status: status || undefined,
+        type: activeState.type || undefined,
+        status: activeState.status || undefined,
         q: debouncedQuery,
-        sort: sort.key as PostSortKey,
-        direction: sort.direction,
-        page,
+        sort: activeState.sort.key,
+        direction: activeState.sort.direction,
+        page: activeState.page,
         size: PAGE_SIZE,
       }),
-    [type, status, debouncedQuery, sort, page],
+    [
+      activeState.type,
+      activeState.status,
+      debouncedQuery,
+      activeState.sort.key,
+      activeState.sort.direction,
+      activeState.page,
+    ],
   );
 
-  const hasFilters = Boolean(type || status || query);
+  const hasFilters = Boolean(activeState.type || activeState.status || query);
   const rows = posts.data?.items ?? [];
   const isFirstLoad = posts.loading && !posts.data;
 
@@ -87,11 +144,16 @@ export function ContentListCanvas() {
   ];
 
   const onSortChange = (key: string) => {
-    setSort((current) => ({
-      key,
-      direction: current.key === key && current.direction === "desc" ? "asc" : key === "title" ? "asc" : "desc",
-    }));
-    setPage(0);
+    const direction =
+      activeState.sort.key === key && activeState.sort.direction === "desc"
+        ? "asc"
+        : key === "title"
+          ? "asc"
+          : "desc";
+    updateListUrl({
+      sort: { key: key as PostSortKey, direction },
+      page: 0,
+    });
   };
 
   const newContentButton = (small = false) => (
@@ -112,29 +174,20 @@ export function ContentListCanvas() {
               label="Search content"
               placeholder="Search title, slug or content"
               value={query}
-              onChange={(value) => {
-                setQuery(value);
-                setPage(0);
-              }}
+              onChange={(value) => setQuery(value)}
             />
           </div>
           <Select
             aria-label="Filter by type"
-            value={type}
-            onChange={(e) => {
-              setType(e.target.value);
-              setPage(0);
-            }}
+            value={activeState.type}
+            onChange={(e) => updateListUrl({ type: e.target.value, page: 0 })}
             className="w-[170px]"
             options={[{ value: "", label: "All types" }, ...(types.data ?? []).map((t) => ({ value: t.key, label: t.displayName }))]}
           />
           <Select
             aria-label="Filter by status"
-            value={status}
-            onChange={(e) => {
-              setStatus(e.target.value as PostStatus | "");
-              setPage(0);
-            }}
+            value={activeState.status}
+            onChange={(e) => updateListUrl({ status: e.target.value as PostStatus | "", page: 0 })}
             className="w-[150px]"
             options={[{ value: "", label: "All statuses" }, ...POST_STATUSES.map((s) => ({ value: s, label: STATUS_LABELS[s] }))]}
           />
@@ -143,10 +196,11 @@ export function ContentListCanvas() {
               type="button"
               className="btn btn-ghost btn-sm"
               onClick={() => {
+                try {
+                  sessionStorage.removeItem(CONTENT_LIST_STORAGE_KEY);
+                } catch {}
                 setQuery("");
-                setType("");
-                setStatus("");
-                setPage(0);
+                router.replace(pathname, { scroll: false });
               }}
             >
               Clear filters
@@ -179,7 +233,7 @@ export function ContentListCanvas() {
               rows={rows}
               rowKey={(item) => item.id}
               onRowClick={(item) => router.push(`/content/${item.id}`)}
-              sort={sort}
+              sort={activeState.sort}
               onSortChange={onSortChange}
               loading={isFirstLoad}
             />
@@ -188,7 +242,11 @@ export function ContentListCanvas() {
 
         {posts.data && posts.data.meta.totalElements > 0 && (
           <div className="border-t border-line px-3.5 py-2">
-            <Pagination meta={posts.data.meta} onPageChange={setPage} noun="items" />
+            <Pagination
+              meta={posts.data.meta}
+              onPageChange={(nextPage) => updateListUrl({ page: nextPage })}
+              noun="items"
+            />
           </div>
         )}
       </div>
