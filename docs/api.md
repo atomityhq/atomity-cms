@@ -51,8 +51,12 @@ no route has been decided, and the CMS never delivers anything to a destination.
 ### `GET /content/{type}`
 
 Published items of one type, newest first. Query parameters: `q` (substring search over title, excerpt,
-slug and body), `sort` (`publishedAt` default, `updatedAt`, `title`), `direction` (`desc` default, `asc`),
-`page` (from 0), `size` (default 10, max 100). An unknown type is a `404`.
+slug and body), `sort` (`publishedAt` default, `updatedAt`, `title`, plus `order` for `docs` only),
+`direction` (`desc` default, `asc`), `page` (from 0), `size` (default 10, max 100). An unknown type is a `404`.
+
+For `docs`, passing `sort=order` sorts items by `fields.order` in ascending numeric order with missing or
+null `order` values placed last (`NULLS LAST`), breaking ties by `title` ascending and then `id` ascending.
+Passing `sort=order` on any other content type (or with `direction=desc`) returns `400 BAD_REQUEST`.
 
 ```json
 {"data": [{

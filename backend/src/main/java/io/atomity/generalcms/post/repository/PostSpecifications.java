@@ -38,6 +38,26 @@ public final class PostSpecifications {
         };
     }
 
+    /**
+     * Sorts docs by numeric fields.order ASC (missing/null values last),
+     * then title ASC, then id ASC for deterministic pagination.
+     */
+    public static Specification<Post> orderByDocsOrder() {
+        return (root, query, cb) -> {
+            if (query != null && Long.class != query.getResultType() && long.class != query.getResultType()) {
+                var hcb = (HibernateCriteriaBuilder) cb;
+                var rawOrder = hcb.function("jsonb_extract_path_text", String.class, root.get("fields"), hcb.literal("order"));
+                var numericOrder = hcb.cast(hcb.nullif(rawOrder, hcb.literal("")), Integer.class);
+                query.orderBy(
+                        hcb.asc(numericOrder, false),
+                        cb.asc(root.get("title")),
+                        cb.asc(root.get("id"))
+                );
+            }
+            return null;
+        };
+    }
+
     /** The user's text is matched literally: % and _ are not wildcards. */
     static String escapeLike(String value) {
         return value.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_");

@@ -11,6 +11,7 @@ import io.atomity.generalcms.post.repository.PostRepository;
 import io.atomity.generalcms.post.repository.PostSpecifications;
 import io.atomity.generalcms.shared.ApiException;
 import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -31,10 +32,14 @@ public class ContentService {
     @Transactional(readOnly = true)
     public Page<ContentSummaryResponse> list(String typeKey, ContentListQuery query) {
         ContentTypeDefinition type = knownType(typeKey);
+        Pageable pageable = query.toPageable(type.key());
         Specification<Post> spec = Specification.where(PostSpecifications.hasType(type.key()))
                 .and(PostSpecifications.hasStatus(PostStatus.PUBLISHED))
                 .and(PostSpecifications.matches(query.q()));
-        return postRepository.findAll(spec, query.toPageable()).map(ContentSummaryResponse::of);
+        if (query.isOrderSort()) {
+            spec = spec.and(PostSpecifications.orderByDocsOrder());
+        }
+        return postRepository.findAll(spec, pageable).map(ContentSummaryResponse::of);
     }
 
     @Transactional(readOnly = true)
