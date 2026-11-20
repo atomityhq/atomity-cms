@@ -47,17 +47,25 @@ public final class ImageInspector {
     }
 
     private static ImageInfo webp(byte[] d) {
-        if (d.length < 30) return null;
+        if (d.length < 20) return null;
+        long fileSize = 8 + u32le(d, 4);
+        long chunkSize = u32le(d, 16);
+        // The declared container and first chunk (including padding) must fit the supplied bytes.
+        if ((fileSize & 1) != 0 || fileSize > d.length
+                || 20 + chunkSize + (chunkSize & 1) > fileSize) return null;
         if (startsWith(d, 12, 'V', 'P', '8', ' ')) {
+            if (chunkSize < 10) return null;
             return new ImageInfo("image/webp", "webp", u16le(d, 26) & 0x3FFF, u16le(d, 28) & 0x3FFF);
         }
         if (startsWith(d, 12, 'V', 'P', '8', 'L')) {
+            if (chunkSize < 5 || d[20] != 0x2F || (d[24] & 0xE0) != 0) return null;
             int b0 = d[21] & 0xFF, b1 = d[22] & 0xFF, b2 = d[23] & 0xFF, b3 = d[24] & 0xFF;
             int width = 1 + (((b1 & 0x3F) << 8) | b0);
             int height = 1 + (((b3 & 0x0F) << 10) | (b2 << 2) | ((b1 & 0xC0) >> 6));
             return new ImageInfo("image/webp", "webp", width, height);
         }
         if (startsWith(d, 12, 'V', 'P', '8', 'X')) {
+            if (chunkSize < 10) return null;
             return new ImageInfo("image/webp", "webp", 1 + u24le(d, 24), 1 + u24le(d, 27));
         }
         return null;
@@ -102,6 +110,11 @@ public final class ImageInspector {
 
     private static int u24le(byte[] d, int i) {
         return (d[i] & 0xFF) | (d[i + 1] & 0xFF) << 8 | (d[i + 2] & 0xFF) << 16;
+    }
+
+    private static long u32le(byte[] d, int i) {
+        return (d[i] & 0xFFL) | (d[i + 1] & 0xFFL) << 8
+                | (d[i + 2] & 0xFFL) << 16 | (d[i + 3] & 0xFFL) << 24;
     }
 
     private static int u16be(byte[] d, int i) {
