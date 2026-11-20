@@ -25,12 +25,13 @@ class ContentTypesTest {
 
     @Test
     void registryHoldsTheFourTypesWithTheirDestinations() {
-        assertThat(ContentTypes.keys()).containsExactly("news", "career", "docs", "kb");
+        assertThat(ContentTypes.keys()).containsExactly("news", "career", "docs", "kb", "event");
         assertThat(ContentTypes.require("news").destination()).isEqualTo(new ContentTypeDefinition.Destination("website", "/news"));
         assertThat(ContentTypes.require("career").destination()).isEqualTo(new ContentTypeDefinition.Destination("website", "/careers"));
         assertThat(ContentTypes.require("docs").destination().label()).isEqualTo("documentation");
         assertThat(ContentTypes.require("docs").destination().route()).isNull();
         assertThat(ContentTypes.require("kb").destination().route()).isNull();
+        assertThat(ContentTypes.require("event").destination()).isEqualTo(new ContentTypeDefinition.Destination("website", "/events"));
     }
 
     @Test
@@ -47,7 +48,7 @@ class ContentTypesTest {
         assertThatThrownBy(() -> ContentTypes.require("blog"))
                 .isInstanceOfSatisfying(ApiException.class, e -> {
                     assertThat(e.getErrorCode()).isEqualTo("UNKNOWN_CONTENT_TYPE");
-                    assertThat(e.getMessage()).contains("news, career, docs, kb");
+                    assertThat(e.getMessage()).contains("news, career, docs, kb, event");
                 });
     }
 
@@ -113,5 +114,21 @@ class ContentTypesTest {
                 .containsExactly("Department", "Employment type", "Application URL");
         assertThat(FieldValidator.missingRequired(ContentTypes.require("news"), json("{}"))).isEmpty();
         assertThat(FieldValidator.missingRequired(ContentTypes.require("kb"), json("{\"product\":\"x\"}"))).containsExactly("Symptom");
+    }
+    @Test
+    void eventRequiresVenueAndStartsOnAndKeepsRegistrationUrlAndOnlineOptional() throws Exception {
+        var eventType = ContentTypes.require(ContentTypes.EVENT);
+        List<String> required = eventType.fields().stream()
+                .filter(FieldDefinition::required)
+                .map(FieldDefinition::name)
+                .toList();
+        assertThat(required).containsExactly("venue", "startsOn");
+        assertThat(eventType.field("registrationUrl").required()).isFalse();
+        assertThat(eventType.field("online").required()).isFalse();
+
+        var cleaned = FieldValidator.normalize(eventType, json("""
+                {"venue":"  Baku Tech Hub ","startsOn":"2026-12-10","registrationUrl":"https://example.org/event","online":true}"""));
+        assertThat(cleaned.get("venue").asText()).isEqualTo("Baku Tech Hub");
+        assertThat(FieldValidator.missingRequired(eventType, cleaned)).isEmpty();
     }
 }

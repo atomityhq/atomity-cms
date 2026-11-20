@@ -26,7 +26,8 @@ class ContentApiTest extends IntegrationTest {
             "career", Map.of("department", "Engineering", "location", "Mannheim", "employmentType", "intern",
                     "applyUrl", "https://example.org/apply", "closingDate", "2026-12-31", "remote", true),
             "docs", Map.of("section", "Getting started", "order", 2),
-            "kb", Map.of("symptom", "Onboarding fails with a 403", "product", "Atomity Agent", "affectedVersions", "1.2 - 1.4"));
+            "kb", Map.of("symptom", "Onboarding fails with a 403", "product", "Atomity Agent", "affectedVersions", "1.2 - 1.4"),
+            "event", Map.of("venue", "Baku Tech Hub", "startsOn", "2026-12-10", "registrationUrl", "https://example.org/event", "online", true));
 
     private static Map<String, Object> doc(String text) {
         Map<String, Object> paragraph = text.isEmpty()
@@ -58,7 +59,7 @@ class ContentApiTest extends IntegrationTest {
 
     @Test
     void everyTypeCanBeCreatedAsADraft() throws Exception {
-        for (String type : List.of("news", "career", "docs", "kb")) {
+        for (String type : List.of("news", "career", "docs", "kb", "event")) {
             JsonNode created = create(type, "A " + type + " item", VALID_FIELDS.get(type));
             assertThat(created.path("type").asText()).isEqualTo(type);
             assertThat(created.path("status").asText()).isEqualTo("DRAFT");
@@ -70,7 +71,7 @@ class ContentApiTest extends IntegrationTest {
 
     @Test
     void everyTypeCanBeUpdated() throws Exception {
-        for (String type : List.of("news", "career", "docs", "kb")) {
+        for (String type : List.of("news", "career", "docs", "kb", "event")) {
             JsonNode created = create(type, "Before " + type, VALID_FIELDS.get(type));
             Map<String, Object> edit = body(type, "After " + type, VALID_FIELDS.get(type));
             edit.put("version", created.path("version").asLong());
@@ -182,6 +183,12 @@ class ContentApiTest extends IntegrationTest {
                     .andExpect(jsonPath("$.errors[0].errorCode").value("NOT_PUBLISHABLE"))
                     .andExpect(jsonPath("$.errors[0].message").value(containsString(type.equals("docs") ? "Section" : "Symptom")));
         }
+        // Event requires venue and startsOn.
+        String eventId = create("event", "Incomplete event", Map.of()).path("id").asText();
+        call(post("/api/v1/posts/" + eventId + "/publish")).andExpect(status().isUnprocessableEntity())
+                .andExpect(jsonPath("$.errors[0].errorCode").value("NOT_PUBLISHABLE"))
+                .andExpect(jsonPath("$.errors[0].message").value(containsString("Venue")))
+                .andExpect(jsonPath("$.errors[0].message").value(containsString("Starts on")));
         // Shared fields: a title and some content.
         Map<String, Object> empty = new HashMap<>();
         empty.put("type", "news");
@@ -195,7 +202,7 @@ class ContentApiTest extends IntegrationTest {
 
     @Test
     void validContentOfEveryTypeCanBePublished() throws Exception {
-        for (String type : List.of("news", "career", "docs", "kb")) {
+        for (String type : List.of("news", "career", "docs", "kb", "event")) {
             JsonNode published = createAndPublish(type, "Live " + type);
             assertThat(published.path("status").asText()).isEqualTo("PUBLISHED");
             assertThat(published.path("publishedAt").isNull()).isFalse();
@@ -245,10 +252,10 @@ class ContentApiTest extends IntegrationTest {
 
     @Test
     void publicApiFiltersByType() throws Exception {
-        for (String type : List.of("news", "career", "docs", "kb")) {
+        for (String type : List.of("news", "career", "docs", "kb", "event")) {
             createAndPublish(type, "Only " + type);
         }
-        for (String type : List.of("news", "career", "docs", "kb")) {
+        for (String type : List.of("news", "career", "docs", "kb", "event")) {
             mockMvc.perform(get("/api/v1/content/" + type))
                     .andExpect(status().isOk())
                     .andExpect(jsonPath("$.data.length()").value(1))
@@ -305,7 +312,7 @@ class ContentApiTest extends IntegrationTest {
     void contentTypesAreDescribedPubliclyWithTheirDestination() throws Exception {
         mockMvc.perform(get("/api/v1/content-types"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.length()").value(4))
+                .andExpect(jsonPath("$.data.length()").value(5))
                 .andExpect(jsonPath("$.data[0].key").value("news"))
                 .andExpect(jsonPath("$.data[0].destination.label").value("website"))
                 .andExpect(jsonPath("$.data[0].destination.route").value("/news"))
@@ -318,7 +325,9 @@ class ContentApiTest extends IntegrationTest {
                 .andExpect(jsonPath("$.data[2].key").value("docs"))
                 .andExpect(jsonPath("$.data[2].destination.label").value("documentation"))
                 .andExpect(jsonPath("$.data[2].destination.route").doesNotExist())
-                .andExpect(jsonPath("$.data[3].key").value("kb"));
+                .andExpect(jsonPath("$.data[3].key").value("kb"))
+                .andExpect(jsonPath("$.data[4].key").value("event"))
+                .andExpect(jsonPath("$.data[4].destination.route").value("/events"));
     }
 
     // ---- admin list and authentication

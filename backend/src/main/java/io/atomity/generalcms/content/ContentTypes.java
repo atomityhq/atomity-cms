@@ -24,6 +24,7 @@ public final class ContentTypes {
     public static final String CAREER = "career";
     public static final String DOCS = "docs";
     public static final String KB = "kb";
+    public static final String EVENT = "event";
 
     private static final List<ContentTypeDefinition> ALL = List.of(
             new ContentTypeDefinition(NEWS, "News",
@@ -53,7 +54,15 @@ public final class ContentTypes {
                     List.of(
                             text("symptom", "Symptom", true),
                             text("product", "Product", false),
-                            text("affectedVersions", "Affected versions", false))));
+                            text("affectedVersions", "Affected versions", false))),
+            new ContentTypeDefinition(EVENT, "Event",
+                    "Meetups, webinars and conferences.",
+                    new Destination("website", "/events"),
+                    List.of(
+                            text("venue", "Venue", true),
+                            date("startsOn", "Starts on", true),
+                            url("registrationUrl", "Registration URL", false),
+                            bool("online", "Online"))));
 
     private ContentTypes() {
     }
