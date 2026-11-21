@@ -85,11 +85,13 @@ class ContentTypesTest {
 
     @Test
     void urlsMustBeHttpWithAHost() throws Exception {
-        for (String bad : new String[] {"example.org/apply", "ftp://example.org", "http://", "https://exa mple.org", "mailto:a@b.de"}) {
+        for (String bad : new String[] {"example.org/apply", "ftp://example.org", "http://", "https://exa mple.org", "mailto:a@b.de", "https://例え.テスト:bad/apply"}) {
             assertThatThrownBy(() -> FieldValidator.normalize(career(), json("{\"applyUrl\":\"" + bad + "\"}")))
                     .as(bad).isInstanceOf(ApiException.class);
         }
         assertThat(FieldValidator.normalize(career(), json("{\"applyUrl\":\"http://localhost:3000/x?y=1\"}")).size()).isEqualTo(1);
+        assertThat(FieldValidator.normalize(career(), json("{\"applyUrl\":\"https://例え.テスト/apply\"}")).size()).isEqualTo(1);
+        assertThat(FieldValidator.normalize(career(), json("{\"applyUrl\":\"https://xn--r8jz45g.xn--zckzah/apply\"}")).size()).isEqualTo(1);
     }
 
     @Test
