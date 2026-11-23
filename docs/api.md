@@ -18,7 +18,7 @@ An error response has only `errors`:
 | HTTP | `errorCode` | When |
 |---|---|---|
 | 400 | `VALIDATION_ERROR` | A body field is malformed. The message lists every problem, e.g. `fields.applyUrl must be a valid URL starting with http:// or https://` |
-| 400 | `UNKNOWN_CONTENT_TYPE` | `type` is not one of `news`, `career`, `docs`, `kb` |
+| 400 | `UNKNOWN_CONTENT_TYPE` | `type` is not one of `news`, `career`, `docs`, `kb`, `event` |
 | 400 | `BAD_REQUEST` | Bad query parameter (`sort`, `direction`, `status`, paging) |
 | 401 | `UNAUTHORIZED` | Admin endpoint without a valid token |
 | 404 | `NOT_FOUND` | No such item or type. For public reads this also covers drafts and archived items. |
@@ -30,7 +30,7 @@ An error response has only `errors`:
 
 ### `GET /content-types`
 
-The four types with their fields and destination metadata. The admin form is generated from this.
+The five types with their fields and destination metadata. The admin form is generated from this.
 
 ```json
 {"data": [{
