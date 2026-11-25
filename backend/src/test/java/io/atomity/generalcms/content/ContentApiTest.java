@@ -505,4 +505,99 @@ class ContentApiTest extends IntegrationTest {
         // Public does not mean writable.
         mockMvc.perform(post("/api/v1/content/news")).andExpect(status().isUnauthorized());
     }
+
+    // ---- docs custom ordering (Issue #27)
+
+    private JsonNode createAndPublishDoc(String title, String slug, Integer order) throws Exception {
+        Map<String, Object> fields = new HashMap<>();
+        fields.put("section", "Guides");
+        if (order != null) {
+            fields.put("order", order);
+        }
+        Map<String, Object> payload = body("docs", title, fields);
+        if (slug != null) {
+            payload.put("slug", slug);
+        }
+        JsonNode created = data(call(post("/api/v1/posts"), payload).andExpect(status().isCreated()));
+        return data(call(post("/api/v1/posts/" + created.path("id").asText() + "/publish")).andExpect(status().isOk()));
+    }
+
+    @Test
+    void docsSortByOrderAscendingWithNullsLastAndDeterministicTieBreaking() throws Exception {
+        // Numeric ordering check: 2 must come before 10 (not lexicographical "10" < "2")
+        createAndPublishDoc("Ten", "ten", 10);
+        createAndPublishDoc("One", "one", 1);
+        createAndPublishDoc("Two", "two", 2);
+        // Ties on order=2 broken by title ASC
+        createAndPublishDoc("Alpha Tie", "alpha-tie", 2);
+        // Same order and same title broken by id ASC
+        JsonNode sameTitleA = createAndPublishDoc("Same Title", "same-title-a", 5);
+        JsonNode sameTitleB = createAndPublishDoc("Same Title", "same-title-b", 5);
+        List<String> expectedSameTitleIds = List.of(
+                sameTitleA.path("id").asText(),
+                sameTitleB.path("id").asText()
+        ).stream().sorted().toList();
+        // Missing order values must appear last, also broken by title ASC
+        createAndPublishDoc("Unordered Zebra", "unordered-zebra", null);
+        createAndPublishDoc("Unordered Alpha", "unordered-alpha", null);
+
+        mockMvc.perform(get("/api/v1/content/docs?sort=order"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.length()").value(8))
+                .andExpect(jsonPath("$.data[0].slug").value("one"))
+                .andExpect(jsonPath("$.data[1].slug").value("alpha-tie"))
+                .andExpect(jsonPath("$.data[2].slug").value("two"))
+                .andExpect(jsonPath("$.data[3].id").value(expectedSameTitleIds.get(0)))
+                .andExpect(jsonPath("$.data[4].id").value(expectedSameTitleIds.get(1)))
+                .andExpect(jsonPath("$.data[5].slug").value("ten"))
+                .andExpect(jsonPath("$.data[6].slug").value("unordered-alpha"))
+                .andExpect(jsonPath("$.data[7].slug").value("unordered-zebra"));
+    }
+
+    @Test
+    void docsSortByOrderWorksAcrossPaginationBoundaries() throws Exception {
+        createAndPublishDoc("Doc 3", "doc-3", 3);
+        createAndPublishDoc("Doc 1", "doc-1", 1);
+        createAndPublishDoc("Doc Unordered", "doc-unordered", null);
+        createAndPublishDoc("Doc 2", "doc-2", 2);
+
+        mockMvc.perform(get("/api/v1/content/docs?sort=order&size=2&page=0"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.length()").value(2))
+                .andExpect(jsonPath("$.data[0].slug").value("doc-1"))
+                .andExpect(jsonPath("$.data[1].slug").value("doc-2"))
+                .andExpect(jsonPath("$.meta.totalElements").value(4))
+                .andExpect(jsonPath("$.meta.totalPages").value(2));
+
+        mockMvc.perform(get("/api/v1/content/docs?sort=order&size=2&page=1"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.length()").value(2))
+                .andExpect(jsonPath("$.data[0].slug").value("doc-3"))
+                .andExpect(jsonPath("$.data[1].slug").value("doc-unordered"));
+    }
+
+    @Test
+    void sortByOrderIsRejectedForNonDocsTypesAndDescDirection() throws Exception {
+        for (String type : List.of("news", "career", "kb")) {
+            mockMvc.perform(get("/api/v1/content/" + type + "?sort=order"))
+                    .andExpect(status().isBadRequest())
+                    .andExpect(jsonPath("$.errors[0].errorCode").value("BAD_REQUEST"));
+        }
+        mockMvc.perform(get("/api/v1/content/docs?sort=order&direction=desc"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.errors[0].errorCode").value("BAD_REQUEST"));
+    }
+
+    @Test
+    void docsDefaultSortingRemainsUnchangedWhenSortIsOmitted() throws Exception {
+        createAndPublishDoc("First Published", "first-published", 1);
+        createAndPublishDoc("Second Published", "second-published", 10);
+
+        // Default is publishedAt DESC, so Second Published comes first despite higher order
+        mockMvc.perform(get("/api/v1/content/docs"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.length()").value(2))
+                .andExpect(jsonPath("$.data[0].slug").value("second-published"))
+                .andExpect(jsonPath("$.data[1].slug").value("first-published"));
+    }
 }
