@@ -7,5 +7,6 @@ export default defineConfig({
   },
   test: {
     include: ["src/**/*.test.{ts,tsx}"],
+    testTimeout: 15000,
   },
 });

@@ -3,8 +3,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Archive, ArrowLeft, CircleAlert, EllipsisVertical, FileQuestion, RefreshCw, Send, Undo2 } from "lucide-react";
+import { Archive, ArrowLeft, CircleAlert, EllipsisVertical, FileQuestion, RefreshCw, Send, Trash2, Undo2 } from "lucide-react";
 import { GuardedLink, useBlockNavigation } from "@/components/shell/NavigationGuard";
+import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { ErrorState } from "@/components/ui/ErrorState";
 import { Menu, type MenuItem } from "@/components/ui/Menu";
@@ -17,7 +18,7 @@ import { countWords, isDocEmpty } from "@/lib/content";
 import { timeAgo } from "@/lib/format";
 import { ApiError } from "@/types/api";
 import { POST_LIMITS, type ContentTypeDefinition, type Post } from "@/types/post";
-import { archivePost, createPost, getContentTypes, getPost, publishPost, unpublishPost, updatePost } from "./api";
+import { archivePost, createPost, deletePost, getContentTypes, getPost, publishPost, unpublishPost, updatePost } from "./api";
 import { describeError, type Failure } from "./errors";
 import { EditorSidebar, type EditorMeta } from "./EditorSidebar";
 import {
@@ -53,14 +54,35 @@ export interface ContentEditorCanvasProps {
   /** The type chosen on the list screen (`?type=`), for a new item. Unknown or missing falls back to the first type. */
   initialType?: string;
 }
-function ArchiveActionsMenu({ onArchive }: { onArchive: () => void }) {
-  const items: (MenuItem | "separator")[] = [
-    {
+function PostActionsMenu({
+  canArchive,
+  onArchive,
+  canDelete,
+  onDelete,
+}: {
+  canArchive: boolean;
+  onArchive: () => void;
+  canDelete: boolean;
+  onDelete: () => void;
+}) {
+  const items: (MenuItem | "separator")[] = [];
+  if (canArchive) {
+    items.push({
       label: "Archive",
       icon: Archive,
       onSelect: onArchive,
-    },
-  ];
+    });
+  }
+  if (canDelete) {
+    if (items.length > 0) items.push("separator");
+    items.push({
+      label: "Delete",
+      icon: Trash2,
+      danger: true,
+      onSelect: onDelete,
+    });
+  }
+  if (items.length === 0) return null;
 
   return (
     <Menu
@@ -171,6 +193,7 @@ function ContentEditor({
   const [publishTried, setPublishTried] = useState(false);
   const [banner, setBanner] = useState<Banner | null>(null);
   const [slugError, setSlugError] = useState<string | undefined>();
+  const [confirmingDelete, setConfirmingDelete] = useState(false);
 
   // The slug follows the title until someone edits it by hand.
   const slugFollows = useRef(slugFollowsTitle(initial));
@@ -338,6 +361,19 @@ function ContentEditor({
     void changeStatus(publishPost, "Published.", "publish");
   };
 
+  const confirmDelete = async () => {
+    if (!post) return;
+    try {
+      await deletePost(post.id);
+      removeRecoveryDraft(post.id);
+      toast.success("Deleted.");
+      router.replace("/content");
+    } catch (error) {
+      toast.error(describeError(error, type).message);
+      throw error;
+    }
+  };
+
   const saveState = busy === "save" ? "Saving…" : dirty ? "Unsaved changes" : post ? `Saved ${timeAgo(post.updatedAt)}` : "Not saved yet";
   const titleProblem = showPublishProblems ? problems.find((problem) => problem.target === "title") : undefined;
   const contentProblem = showPublishProblems ? problems.find((problem) => problem.target === "content") : undefined;
@@ -406,11 +442,14 @@ function ContentEditor({
               )}
             </>
           )}
-          {post && status !== "ARCHIVED" && (
-            <ArchiveActionsMenu
+          {post && (
+            <PostActionsMenu
+              canArchive={status !== "ARCHIVED"}
               onArchive={() =>
                 void changeStatus(archivePost, "Archived.", "status")
               }
+              canDelete={status !== "PUBLISHED"}
+              onDelete={() => setConfirmingDelete(true)}
             />
           )}
         </div>
@@ -511,6 +550,21 @@ function ContentEditor({
           />
         </aside>
       </div>
+
+      {confirmingDelete && post && (
+        <ConfirmDialog
+          title="Delete content?"
+          message={
+            <>
+              Permanently delete <strong>{form.title.trim() || "Untitled"}</strong>? This cannot be undone.
+            </>
+          }
+          confirmLabel="Delete"
+          danger
+          onConfirm={confirmDelete}
+          onClose={() => setConfirmingDelete(false)}
+        />
+      )}
     </div>
   );
 }

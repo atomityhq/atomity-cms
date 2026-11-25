@@ -58,3 +58,8 @@ export function unpublishPost(id: string): Promise<Post> {
 export function archivePost(id: string): Promise<Post> {
   return api("POST", `/posts/${id}/archive`);
 }
+
+/** DELETE /api/v1/posts/{id} — deletes a draft or archived item; refused (409) while published. */
+export async function deletePost(id: string): Promise<void> {
+  await api("DELETE", `/posts/${id}`);
+}
