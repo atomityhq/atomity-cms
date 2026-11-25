@@ -160,6 +160,20 @@ public class PostService {
         return PostResponse.of(postRepository.saveAndFlush(post));
     }
 
+    /**
+     * Permanently deletes a draft or archived item. Published items must be unpublished
+     * or archived first so live public content cannot be removed accidentally.
+     */
+    @Transactional
+    public void delete(UUID id) {
+        Post post = find(id);
+        if (post.getStatus() == PostStatus.PUBLISHED) {
+            throw ApiException.conflict("CANNOT_DELETE_PUBLISHED",
+                    "Published content can't be deleted. Unpublish or archive it first.");
+        }
+        postRepository.delete(post);
+    }
+
     private Post find(UUID id) {
         return postRepository.findById(id).orElseThrow(() -> ApiException.notFound("Content"));
     }

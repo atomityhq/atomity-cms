@@ -23,6 +23,7 @@ const api = vi.hoisted(() => ({
   publishPost: vi.fn(),
   unpublishPost: vi.fn(),
   archivePost: vi.fn(),
+  deletePost: vi.fn(),
 }));
 vi.mock("./api", () => api);
 vi.mock("next/navigation", () => ({
@@ -690,5 +691,47 @@ describe("ContentEdiorCanvas : Issue #4", () => {
         }),
       );
     });
+  });
+});
+
+describe("ContentEditorCanvas : delete action", () => {
+  it("deletes a draft after confirmation", async () => {
+    api.getPost.mockResolvedValue(post({ status: "DRAFT" }));
+    api.deletePost.mockResolvedValue(undefined);
+
+    await loadEditor();
+    fireEvent.click(screen.getByRole("button", { name: "More actions" }));
+    fireEvent.click(screen.getByRole("menuitem", { name: "Delete" }));
+
+    expect(screen.getByRole("dialog")).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Delete" }));
+
+    await waitFor(() => {
+      expect(api.deletePost).toHaveBeenCalledWith("p1");
+    });
+  });
+
+  it("allows deleting an archived item", async () => {
+    api.getPost.mockResolvedValue(post({ status: "ARCHIVED" }));
+    api.deletePost.mockResolvedValue(undefined);
+
+    await loadEditor();
+    fireEvent.click(screen.getByRole("button", { name: "More actions" }));
+    fireEvent.click(screen.getByRole("menuitem", { name: "Delete" }));
+
+    fireEvent.click(screen.getByRole("button", { name: "Delete" }));
+
+    await waitFor(() => {
+      expect(api.deletePost).toHaveBeenCalledWith("p1");
+    });
+  });
+
+  it("does not offer delete for published items", async () => {
+    api.getPost.mockResolvedValue(post({ status: "PUBLISHED" }));
+
+    await loadEditor();
+    fireEvent.click(screen.getByRole("button", { name: "More actions" }));
+
+    expect(screen.queryByRole("menuitem", { name: "Delete" })).toBeNull();
   });
 });

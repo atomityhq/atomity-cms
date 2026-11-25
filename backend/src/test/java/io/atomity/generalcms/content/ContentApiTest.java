@@ -11,6 +11,7 @@ import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.Matchers.containsString;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.head;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -92,6 +93,37 @@ class ContentApiTest extends IntegrationTest {
         String path = "/api/v1/posts/00000000-0000-0000-0000-000000000001/duplicate";
         mockMvc.perform(post(path)).andExpect(status().isUnauthorized());
         call(post(path)).andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.errors[0].errorCode").value("NOT_FOUND"));
+    }
+
+    @Test
+    void deleteRemovesDraftAndArchivedItems() throws Exception {
+        JsonNode draft = create("news", "Draft to delete", Map.of());
+        String draftPath = "/api/v1/posts/" + draft.path("id").asText();
+        call(delete(draftPath)).andExpect(status().isNoContent());
+        call(get(draftPath)).andExpect(status().isNotFound());
+
+        JsonNode published = createAndPublish("news", "Archived to delete");
+        String archivedPath = "/api/v1/posts/" + published.path("id").asText();
+        call(post(archivedPath + "/archive")).andExpect(status().isOk());
+        call(delete(archivedPath)).andExpect(status().isNoContent());
+        call(get(archivedPath)).andExpect(status().isNotFound());
+    }
+
+    @Test
+    void deleteRefusesPublishedItem() throws Exception {
+        JsonNode published = createAndPublish("news", "Live announcement");
+        String path = "/api/v1/posts/" + published.path("id").asText();
+        call(delete(path)).andExpect(status().isConflict())
+                .andExpect(jsonPath("$.errors[0].errorCode").value("CANNOT_DELETE_PUBLISHED"));
+        call(get(path)).andExpect(status().isOk());
+    }
+
+    @Test
+    void deleteRequiresAdminAndExistingItem() throws Exception {
+        String path = "/api/v1/posts/00000000-0000-0000-0000-000000000001";
+        mockMvc.perform(delete(path)).andExpect(status().isUnauthorized());
+        call(delete(path)).andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.errors[0].errorCode").value("NOT_FOUND"));
     }
 
