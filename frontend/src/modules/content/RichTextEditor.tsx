@@ -27,6 +27,7 @@ import { cn } from "@/lib/utils";
 import { MediaPickerModal } from "@/modules/media/MediaPickerModal";
 import type { ContentDoc } from "@/types/content";
 import { editorExtensions } from "./extensions";
+import { insertImage } from "./insertImage";
 
 export interface RichTextEditorProps {
   value: ContentDoc;
@@ -120,11 +121,7 @@ function Toolbar({ editor }: { editor: Editor }) {
         <MediaPickerModal
           title="Insert image"
           onClose={() => setImageOpen(false)}
-          onSelect={(media) =>
-            chain()
-              .insertContent({ type: "image", attrs: { src: media.url, alt: media.altText, mediaId: media.id } })
-              .run()
-          }
+          onSelect={(media) => insertImage(editor, { src: media.url, alt: media.altText, mediaId: media.id })}
         />
       )}
     </div>
